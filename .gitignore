@@ -10,3 +10,4 @@ Documentation
 *.opensdf
 *.user
 .vs
+/Solution

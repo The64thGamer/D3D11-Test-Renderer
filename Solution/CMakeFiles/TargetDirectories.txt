@@ -1,0 +1,3 @@
+C:/Users/lowpo/Desktop/Full Sail University/DEV4/Project/gtemplates-master/GreenScreen/Solution/CMakeFiles/GreenScreen.dir
+C:/Users/lowpo/Desktop/Full Sail University/DEV4/Project/gtemplates-master/GreenScreen/Solution/CMakeFiles/ALL_BUILD.dir
+C:/Users/lowpo/Desktop/Full Sail University/DEV4/Project/gtemplates-master/GreenScreen/Solution/CMakeFiles/ZERO_CHECK.dir

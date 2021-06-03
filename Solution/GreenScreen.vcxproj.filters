@@ -1,0 +1,24 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="16.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\Users\lowpo\Desktop\Full Sail University\DEV4\Project\gtemplates-master\GreenScreen\main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="C:\Users\lowpo\Desktop\Full Sail University\DEV4\Project\gtemplates-master\GreenScreen\renderer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\lowpo\Desktop\Full Sail University\DEV4\Project\gtemplates-master\GreenScreen\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{9772BBAC-4544-3EF2-9FD2-122232FCD2CE}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{71BCF7E7-2D1F-3F6D-987B-FB345C8E23DB}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

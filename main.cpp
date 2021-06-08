@@ -48,7 +48,7 @@ int main()
 					con->ClearRenderTargetView(view, clr);
 					con->ClearDepthStencilView(depth, D3D11_CLEAR_DEPTH, 1, 0);
 					renderer.Render();
-					swap->Present(1, 0);
+					swap->Present(0, 0);
 					// release incremented COM reference counts
 					swap->Release();
 					view->Release();

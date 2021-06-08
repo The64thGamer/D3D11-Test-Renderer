@@ -34,6 +34,10 @@ float4 main() : SV_TARGET
 // Creation, Rendering & Cleanup
 class Renderer
 {
+	//Variables
+	float oldTime = 0;
+
+
 	// proxy handles
 	GW::SYSTEM::GWindow win;
 	GW::GRAPHICS::GDirectX11Surface d3d;
@@ -112,7 +116,7 @@ public:
 		//setup matricies
 		m.Create();
 		svars.w = GW::MATH::GIdentityMatrixF;
-		m.LookAtLHF(GW::MATH::GVECTORF{ 1, 1,-3}, GW::MATH::GVECTORF{ 0, 0.5f, 0 }, GW::MATH::GVECTORF{ 0,1,0 },svars.v);
+		m.LookAtLHF(GW::MATH::GVECTORF{ 1, 1,-2}, GW::MATH::GVECTORF{ 0, 0.5f, 0 }, GW::MATH::GVECTORF{ 0,1,0 },svars.v);
 		float ar;
 		d3d.GetAspectRatio(ar);
 		m.ProjectionDirectXLHF(G_DEGREE_TO_RADIAN(75),ar,0.1f,100.0f,svars.p);
@@ -148,9 +152,10 @@ public:
 		con->VSSetConstantBuffers(0,1, cbuffs);
 		// now we can draw
 		con->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-		// update the matricies VVVVVVV USE TO MOVE OBJECT
-		//con->UpdateSubresource();
-
+		// update the matricies
+		m.RotateYLocalF(svars.w, 0.01, svars.w);
+		con->UpdateSubresource(constantBuffer.Get(),0,nullptr,&svars,sizeof(SHDR_VARS),0);
+		oldTime = std::chrono::system_clock::now();
 		con->DrawIndexed(test_pyramid_indexcount, 0, 0);
 		// release temp handles
 		depth->Release();

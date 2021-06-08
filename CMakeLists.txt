@@ -23,6 +23,8 @@ add_executable (GreenScreen
 	main.cpp
 	renderer.h
 	test_pyramid.h
+	DDSTextureLoader.cpp
+	DDSTextureLoader.h
 	${VERTEX_SHADERS}
 	${PIXEL_SHADERS}
 )

@@ -2,41 +2,75 @@
 // required for compiling shaders on the fly, consider pre-compiling instead
 #include <d3dcompiler.h>
 #include "test_pyramid.h"
+#include "DDSTextureLoader.h"
 #pragma comment(lib, "d3dcompiler.lib")
 // Simple Vertex Shader
 
 //BE SURE TO USE THE PRAGMA PACK MATRIX ON SHADERS!!!
 const char* vertexShaderSource = R"(
 #pragma pack_matrix(row_major)
-cbuffer SHDR_VARS
+
+cbuffer SHDR_VARS // constant buggers are 16byte aligned
 {
 	matrix w, v, p;
+	float4 lightDir; //adding 1 float for padding
+	float4 lightColor;
+};
+
+struct VOUT
+{
+	float4 posH : SV_POSITION;
+	float3 uvw	: TEXCOORD;
+	float3 nrm	: NORMAL;
 };
 
 // an ultra simple hlsl vertex shader
-float4 main(float3 posL : POSITION, float3 uvw : TEXCOORD, float3 nrm : NORMAL) : SV_POSITION
+VOUT main(float3 posL : POSITION, float3 uvw : TEXCOORD, float3 nrm : NORMAL)
 {
+	VOUT output;
 	float4 vert = float4(posL, 1);
 	vert = mul(vert, w);
 	vert = mul(vert, v);
 	vert = mul(vert, p);
-	return vert;
+	output.posH = vert;
+	output.uvw = uvw;
+	output.nrm = mul(nrm, w);
+	return output;
 }
 )";
 // Simple Pixel Shader
 const char* pixelShaderSource = R"(
 // an ultra simple hlsl pixel shader
-float4 main() : SV_TARGET 
+cbuffer SHDR_VARS // constant buggers are 16byte aligned
+{
+	matrix w, v, p;
+	float4 lightDir; //adding 1 float for padding
+	float4 lightColor;
+};
+
+
+Texture2D mytexture;
+SamplerState mysampler;
+
+struct VOUT
+{
+	float4 posH : SV_POSITION;
+	float3 uvw : TEXCOORD;
+	float3 nrm : NORMAL;
+};
+
+float4 main(VOUT input) : SV_TARGET 
 {	
-	return float4(0.25f,0.0f,1.0f,0); 
+	float4 diffuse = mytexture.Sample(mysampler, input.uvw.xy);
+	return saturate(dot(-lightDir.xyz,input.nrm)) * diffuse * lightColor;
 }
 )";
 // Creation, Rendering & Cleanup
 class Renderer
 {
 	//Variables
-	float oldTime = 0;
-
+	std::chrono::system_clock::time_point oldTime = std::chrono::system_clock::now();
+	double timeDeltaTime = 0;
 
 	// proxy handles
 	GW::SYSTEM::GWindow win;
@@ -47,11 +81,15 @@ class Renderer
 	Microsoft::WRL::ComPtr<ID3D11VertexShader>	vertexShader;
 	Microsoft::WRL::ComPtr<ID3D11PixelShader>	pixelShader;
 	Microsoft::WRL::ComPtr<ID3D11InputLayout>	vertexFormat;
+	//Texture Variables
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> texture;
 	// Shader Variables
 	Microsoft::WRL::ComPtr<ID3D11Buffer>		constantBuffer;
 	struct SHDR_VARS
 	{
 		GW::MATH::GMATRIXF w, v, p;
+		GW::MATH::GVECTORF lightDir; //adding 1 float for padding
+		GW::MATH::GVECTORF lightColor;
 	}svars;
 	//math lib
 	GW::MATH::GMatrix m;
@@ -120,16 +158,25 @@ public:
 		float ar;
 		d3d.GetAspectRatio(ar);
 		m.ProjectionDirectXLHF(G_DEGREE_TO_RADIAN(75),ar,0.1f,100.0f,svars.p);
+		// init light data
+		svars.lightColor = GW::MATH::GVECTORF{ 1,1,1,1 };
+		svars.lightDir = GW::MATH::GVECTORF{ -1,-1,1,0 };
+		GW::MATH::GVector::NormalizeF(svars.lightDir, svars.lightDir);
+
 		//Constant buffer crearte
 		D3D11_SUBRESOURCE_DATA cData = { &svars, 0, 0 };
 		CD3D11_BUFFER_DESC cDesc(sizeof(SHDR_VARS), D3D11_BIND_CONSTANT_BUFFER);
 		creator->CreateBuffer(&cDesc, &cData, constantBuffer.GetAddressOf());
-
+		//Try to load texture from disk
+		HRESULT hr = CreateDDSTextureFromFile(creator, L"../Rock.dds",nullptr,texture.GetAddressOf());
 		// free temporary handle
 		creator->Release();
 	}
 	void Render()
 	{
+		//Time
+		SetDeltaTime();
+
 		// grab the context & render target
 		ID3D11DeviceContext* con;
 		ID3D11RenderTargetView* view;
@@ -150,12 +197,18 @@ public:
 		con->IASetInputLayout(vertexFormat.Get());
 		ID3D11Buffer* const cbuffs[] = { constantBuffer.Get() };
 		con->VSSetConstantBuffers(0,1, cbuffs);
+		con->PSSetConstantBuffers(0, 1, cbuffs);
 		// now we can draw
 		con->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		//set out texture
+		ID3D11ShaderResourceView* const srvs[] = { texture.Get() };
+		con->PSSetShaderResources(0, 1, srvs);
 		// update the matricies
-		m.RotateYLocalF(svars.w, 0.01, svars.w);
+		m.RotateYLocalF(svars.w, 1 * timeDeltaTime, svars.w);
+		
+
+		//Update Resource
 		con->UpdateSubresource(constantBuffer.Get(),0,nullptr,&svars,sizeof(SHDR_VARS),0);
-		oldTime = std::chrono::system_clock::now();
 		con->DrawIndexed(test_pyramid_indexcount, 0, 0);
 		// release temp handles
 		depth->Release();
@@ -165,5 +218,13 @@ public:
 	~Renderer()
 	{
 		// ComPtr will auto release so nothing to do here 
+	}
+
+	void SetDeltaTime()
+	{
+		std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
+		timeDeltaTime = std::chrono::duration_cast<std::chrono::microseconds>(now - oldTime).count();
+		std::cout << "\n" << timeDeltaTime;
+		oldTime = now;
 	}
 };

@@ -24,11 +24,9 @@ int main()
 	GDirectX11Surface d3d11;
 	if (+win.Create(0, 0, 800, 600, GWindowStyle::WINDOWEDBORDERED))
 	{
-		float clr[] = { 57/255.0f, 1.0f, 20/255.0f, 1 }; // start with a neon green
+		float clr[] = { 134 /255.0f, 175 / 255.0f, 186 /255.0f, 1 }; // start with a neon green
 		msgs.Create([&](const GW::GEvent& e) {
 			GW::SYSTEM::GWindow::Events q;
-			if (+e.Read(q) && q == GWindow::Events::RESIZE)
-				clr[2] += 0.01f; // move towards a cyan as they resize
 		});
 		win.Register(msgs);
 		if (+d3d11.Create(win, GW::GRAPHICS::DEPTH_BUFFER_SUPPORT))

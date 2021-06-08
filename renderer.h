@@ -224,7 +224,7 @@ public:
 	{
 		std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
 		timeDeltaTime = std::chrono::duration_cast<std::chrono::microseconds>(now - oldTime).count();
-		std::cout << "\n" << timeDeltaTime;
+		timeDeltaTime /= 600000.0;
 		oldTime = now;
 	}
 };

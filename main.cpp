@@ -3,6 +3,7 @@
 #define GATEWARE_ENABLE_SYSTEM // Graphics libs require system level libraries
 #define GATEWARE_ENABLE_GRAPHICS // Enables all Graphics Libraries
 #define GATEWARE_ENABLE_MATH
+#define GATEWARE_ENABLE_INPUT 
 // Ignore some GRAPHICS libraries we aren't going to use
 #define GATEWARE_DISABLE_GDIRECTX12SURFACE // we have another template for this
 #define GATEWARE_DISABLE_GRASTERSURFACE // we have another template for this
@@ -24,6 +25,13 @@ int main()
 	GDirectX11Surface d3d11;
 	if (+win.Create(0, 0, 800, 600, GWindowStyle::WINDOWEDBORDERED))
 	{
+		std::cout << "WASD + Arrow Keys             -     Move\n" <<
+					 "Space                         -     Jump\n" <<
+					 "Shift                         -     Run\n" <<
+					 "Plus/Minus                    -     Adjust FOV\n" <<
+					 "Left/Right Bracket            -     Near Plane Adjustment\n" <<
+					 "(Shift)Left/Right Bracket     -     Far Plane Adjustment\n" <<
+					 "1                             -     Toggle View Lock\n";
 		float clr[] = { 134 /255.0f, 175 / 255.0f, 186 /255.0f, 1 }; // start with a neon green
 		msgs.Create([&](const GW::GEvent& e) {
 			GW::SYSTEM::GWindow::Events q;

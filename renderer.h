@@ -77,11 +77,9 @@ class Renderer
 	float nearFarSpeed = 0;
 	float nearPlane = 0.1f;
 	float farPlane = 100.0f;
-	float playerX = 0;
-	float playerY = 1;
-	float playerZ = 0;
 	float playerVelX = 0;
 	float playerVelZ = 0;
+	float playerVelY = 0;
 
 	struct InputKeyboard
 	{
@@ -101,7 +99,8 @@ class Renderer
 	};
 	InputKeyboard keys;
 
-	GW::MATH::GMATRIXF viewM;
+	GW::MATH::GMATRIXF viewWorldM;
+	GW::MATH::GMATRIXF viewLocalM;
 
 	//input
 	GW::INPUT::GInput ginput;
@@ -191,11 +190,12 @@ public:
 		//setup matricies
 		m.Create();
 		svars.w = GW::MATH::GIdentityMatrixF;
+		viewWorldM = GW::MATH::GIdentityMatrixF;
+		viewWorldM.data[14] = 1;
 		float ar;
 		d3d.GetAspectRatio(ar);
 		m.ProjectionDirectXLHF(G_DEGREE_TO_RADIAN(fov), ar, 0.1f, 100.0f, svars.p);
-		m.LookAtLHF(GW::MATH::GVECTORF{ playerX, playerY, playerZ }, GW::MATH::GVECTORF{ playerX, playerY, playerZ + 1 }, GW::MATH::GVECTORF{ 0,1,0 }, svars.v);
-		m.LookAtLHF(GW::MATH::GVECTORF{ playerX, playerY, playerZ }, GW::MATH::GVECTORF{ playerX, playerY, playerZ + 1 }, GW::MATH::GVECTORF{ 0,1,0 }, viewM);
+		m.LookAtLHF(GW::MATH::GVECTORF{ 0, 1, 0 }, GW::MATH::GVECTORF{ 0, 1, 0 + 1 }, GW::MATH::GVECTORF{ 0,1,0 }, viewLocalM);
 		// init light data
 		svars.lightColor = GW::MATH::GVECTORF{ 1,1,1,1 };
 		svars.lightDir = GW::MATH::GVECTORF{ -1,-1,1,0 };
@@ -320,8 +320,8 @@ public:
 		keys.bracketR = (bracketR);
 		keys.bracketL = (bracketL);
 		keys.one = (one);
-		keys.mouseX = fmod(keys.mouseX - mouseX, 3600);
-		keys.mouseY = max(min(fmod(keys.mouseY - mouseY, 3600),790),-790);
+		keys.mouseX = mouseX;
+		keys.mouseY = mouseY;
 	}
 
 	void Physics()
@@ -428,7 +428,6 @@ public:
 			playerVelZ += timeDeltaTime / 50.0f;
 			playerVelZ = min(playerVelZ, 0);
 		}
-		playerZ += playerVelZ;
 
 		if (keys.right)
 		{
@@ -452,9 +451,6 @@ public:
 			playerVelX += timeDeltaTime / 50.0f;
 			playerVelX = min(playerVelX, 0);
 		}
-		playerX += playerVelX;
-		playerX = max(min(playerX, 10), -10);
-		playerZ = max(min(playerZ, 9), -9);
 		//Apply Camera
 		float ar;
 		d3d.GetAspectRatio(ar);
@@ -465,13 +461,9 @@ public:
 		float radianY = G_DEGREE_TO_RADIAN(keys.mouseY / 10.0f);
 		m.RotationYawPitchRollF(radianX, 0, 0, rotatedX);
 		m.RotationYawPitchRollF(0, radianY, 0, rotatedY);
-		m.MultiplyMatrixF(rotatedX,GW::MATH::GIdentityMatrixF, svars.w);
-		m.MultiplyMatrixF(rotatedY, viewM, svars.v);
-		float newposZ = playerZ * cosf(radianX) - playerX * sinf(radianX);
-		float newposX = playerZ * sinf(radianX) + playerX * cosf(radianX);
-		svars.w.data[12] = -newposX;
-		svars.w.data[13] = -playerY;
-		svars.w.data[14] = -newposZ;
-		std::cout << svars.w.data[12];
+		m.MultiplyMatrixF(rotatedY, viewLocalM, viewLocalM);
+		m.TranslateGlobalF(viewWorldM, GW::MATH::GVECTORF{ -playerVelX,playerVelY,-playerVelZ}, viewWorldM);
+		m.RotateYLocalF(viewWorldM, radianX, viewWorldM);
+		m.MultiplyMatrixF(viewWorldM, viewLocalM, svars.v);
 	}
 };

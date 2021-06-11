@@ -47,6 +47,9 @@ cbuffer SHDR_VARS // constant buggers are 16byte aligned
 	matrix w, v, p;
 	float4 lightDir; //adding 1 float for padding
 	float4 lightColor;
+	float4 ambientColor;
+	float4 pointLightPos;
+	float4 pointLightColor;
 };
 
 
@@ -63,7 +66,11 @@ struct VOUT
 float4 main(VOUT input) : SV_TARGET 
 {	
 	float4 diffuse = mytexture.Sample(mysampler, input.uvw.xy);
-	return saturate(dot(-lightDir.xyz,input.nrm)) * diffuse * lightColor;
+	float4 light;
+	//light = (saturate(dot(-lightDir.xyz,input.nrm))+ambientColor) * diffuse * lightColor;
+	light = (saturate(dot(normalize(pointLightPos.xyz - input.posH.xyz),input.nrm))) * pointLightColor * diffuse;
+	light = saturate(light);
+	return light;
 }
 )";
 // Creation, Rendering & Cleanup
@@ -72,6 +79,7 @@ class Renderer
 	//Variables
 	std::chrono::system_clock::time_point oldTime = std::chrono::system_clock::now();
 	double timeDeltaTime = 0;
+	double timeSinceStart = 0;
 	float fovSpeed = 0;
 	float fov = 75;
 	float nearFarSpeed = 0;
@@ -81,6 +89,7 @@ class Renderer
 	float playerVelZ = 0;
 	float playerVelY = 0;
 
+	//Keyboard
 	struct InputKeyboard
 	{
 		bool up;
@@ -99,22 +108,32 @@ class Renderer
 	};
 	InputKeyboard keys;
 
+	//Camera
 	GW::MATH::GMATRIXF viewWorldM;
 	GW::MATH::GMATRIXF viewLocalM;
 
-	//input
+	//MESHES
+	struct MESH
+	{
+		unsigned index_count;
+		GW::MATH::GMATRIXF w;
+		Microsoft::WRL::ComPtr<ID3D11Buffer>		vertexBuffer;
+		Microsoft::WRL::ComPtr<ID3D11Buffer>		indexBuffer;
+		Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> texture;
+	};
+	MESH meshes[2];
+
+
+
+	//SETUP
 	GW::INPUT::GInput ginput;
 	// proxy handles
 	GW::SYSTEM::GWindow win;
 	GW::GRAPHICS::GDirectX11Surface d3d;
 	// what we need at a minimum to draw a triangle
-	Microsoft::WRL::ComPtr<ID3D11Buffer>		vertexBuffer;
-	Microsoft::WRL::ComPtr<ID3D11Buffer>		indexBuffer;
 	Microsoft::WRL::ComPtr<ID3D11VertexShader>	vertexShader;
 	Microsoft::WRL::ComPtr<ID3D11PixelShader>	pixelShader;
 	Microsoft::WRL::ComPtr<ID3D11InputLayout>	vertexFormat;
-	//Texture Variables
-	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> texture;
 	// Shader Variables
 	Microsoft::WRL::ComPtr<ID3D11Buffer>		constantBuffer;
 	struct SHDR_VARS
@@ -122,29 +141,70 @@ class Renderer
 		GW::MATH::GMATRIXF w, v, p;
 		GW::MATH::GVECTORF lightDir; //adding 1 float for padding
 		GW::MATH::GVECTORF lightColor;
+		GW::MATH::GVECTORF ambientColor;
+		GW::MATH::GVECTORF pointLightPos;
+		GW::MATH::GVECTORF pointLightColor;
 	}svars;
 	//math lib
 	GW::MATH::GMatrix m;
 
 public:
+	bool FillMesh(MESH &fill, const OBJ_VERT* verts, unsigned num_vert, const unsigned* indices, unsigned num_index,const wchar_t* tex_file)
+	{
+		ID3D11Device* creator;
+		d3d.GetDevice((void**)&creator);
+
+		D3D11_SUBRESOURCE_DATA bData = {verts , 0, 0 };
+		CD3D11_BUFFER_DESC bDesc(sizeof(OBJ_VERT) * num_vert, D3D11_BIND_VERTEX_BUFFER);
+		creator->CreateBuffer(&bDesc, &bData, fill.vertexBuffer.GetAddressOf());
+		//index buffer
+		D3D11_SUBRESOURCE_DATA iData = {indices , 0, 0 };
+		CD3D11_BUFFER_DESC iDesc(sizeof(unsigned) * num_index, D3D11_BIND_INDEX_BUFFER);
+		creator->CreateBuffer(&iDesc, &iData, fill.indexBuffer.GetAddressOf());
+		fill.index_count = num_index;
+
+		//Try to load texture from disk
+		HRESULT hr = CreateDDSTextureFromFile(creator, tex_file, nullptr, fill.texture.GetAddressOf());
+
+		fill.w = GW::MATH::GIdentityMatrixF;
+
+		creator->Release();
+
+		return true;
+	}
+	void DrawMesh(const MESH& draw)
+	{
+		ID3D11DeviceContext* con;
+		ID3D11DepthStencilView* depth;
+		d3d.GetImmediateContext((void**)&con);
+		d3d.GetDepthStencilView((void**)&depth);
+		const UINT strides[] = { sizeof(OBJ_VERT) };
+		const UINT offsets[] = { 0 };
+
+		ID3D11Buffer* const buffs[] = { draw.vertexBuffer.Get() };
+		con->IASetVertexBuffers(0, ARRAYSIZE(buffs), buffs, strides, offsets);
+		con->IASetIndexBuffer(draw.indexBuffer.Get(), DXGI_FORMAT_R32_UINT, 0);
+
+		//set out texture
+		ID3D11ShaderResourceView* const srvs[] = { draw.texture.Get() };
+		con->PSSetShaderResources(0, 1, srvs);
+
+		svars.w = draw.w; //make sure our world matrix is used at ttime of drawing
+		con->UpdateSubresource(constantBuffer.Get(), 0, nullptr, &svars, sizeof(SHDR_VARS), 0);
+
+		con->DrawIndexed(draw.index_count, 0, 0);
+
+		con->Release();
+	}
+
 	Renderer(GW::SYSTEM::GWindow _win, GW::GRAPHICS::GDirectX11Surface _d3d)
 	{
 		win = _win;
 		d3d = _d3d;
-
 		//Input
 		GW::GReturn g = ginput.Create(win);
-
 		ID3D11Device* creator;
 		d3d.GetDevice((void**)&creator);
-		D3D11_SUBRESOURCE_DATA bData = { dev4_data, 0, 0 };
-		CD3D11_BUFFER_DESC bDesc(sizeof(dev4_data), D3D11_BIND_VERTEX_BUFFER);
-		creator->CreateBuffer(&bDesc, &bData, vertexBuffer.GetAddressOf());
-		//index buffer
-		D3D11_SUBRESOURCE_DATA iData = { dev4_indicies, 0, 0 };
-		CD3D11_BUFFER_DESC iDesc(sizeof(dev4_indicies), D3D11_BIND_INDEX_BUFFER);
-		creator->CreateBuffer(&iDesc, &iData, indexBuffer.GetAddressOf());
-
 		// Create Vertex Shader
 		UINT compilerFlags = D3DCOMPILE_ENABLE_STRICTNESS;
 #if _DEBUG
@@ -199,14 +259,19 @@ public:
 		// init light data
 		svars.lightColor = GW::MATH::GVECTORF{ 1,1,1,1 };
 		svars.lightDir = GW::MATH::GVECTORF{ -1,-1,1,0 };
+		svars.pointLightColor = GW::MATH::GVECTORF{ 100.0 / 255.0, 120.0 / 255.0, 200.0 / 255.0,0 };
+		svars.pointLightPos = GW::MATH::GVECTORF{ 1,-3,1,1 };
+		svars.ambientColor = GW::MATH::GVECTORF{ 39/255.0,18/255.0,53/255.0,0 };
 		GW::MATH::GVector::NormalizeF(svars.lightDir, svars.lightDir);
 
 		//Constant buffer crearte
 		D3D11_SUBRESOURCE_DATA cData = { &svars, 0, 0 };
 		CD3D11_BUFFER_DESC cDesc(sizeof(SHDR_VARS), D3D11_BIND_CONSTANT_BUFFER);
 		creator->CreateBuffer(&cDesc, &cData, constantBuffer.GetAddressOf());
-		//Try to load texture from disk
-		HRESULT hr = CreateDDSTextureFromFile(creator, L"../Rock.dds", nullptr, texture.GetAddressOf());
+		
+		//Set Up Models
+		ModelSetUp();
+
 		// free temporary handle
 		creator->Release();
 	}
@@ -218,6 +283,8 @@ public:
 		SetDeltaTime();
 		//Physics
 		Physics();
+		//Update
+		Update();
 		// grab the context & render target
 		ID3D11DeviceContext* con;
 		ID3D11RenderTargetView* view;
@@ -228,11 +295,6 @@ public:
 		// setup the pipeline
 		ID3D11RenderTargetView* const views[] = { view };
 		con->OMSetRenderTargets(ARRAYSIZE(views), views, depth);
-		const UINT strides[] = { sizeof(OBJ_VERT) };
-		const UINT offsets[] = { 0 };
-		ID3D11Buffer* const buffs[] = { vertexBuffer.Get() };
-		con->IASetVertexBuffers(0, ARRAYSIZE(buffs), buffs, strides, offsets);
-		con->IASetIndexBuffer(indexBuffer.Get(), DXGI_FORMAT_R32_UINT, 0);
 		con->VSSetShader(vertexShader.Get(), nullptr, 0);
 		con->PSSetShader(pixelShader.Get(), nullptr, 0);
 		con->IASetInputLayout(vertexFormat.Get());
@@ -241,16 +303,13 @@ public:
 		con->PSSetConstantBuffers(0, 1, cbuffs);
 		// now we can draw
 		con->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-		//set out texture
-		ID3D11ShaderResourceView* const srvs[] = { texture.Get() };
-		con->PSSetShaderResources(0, 1, srvs);
-		// update the matricies
-		//m.RotateYLocalF(svars.w, 1 * timeDeltaTime, svars.w);
-
-
 		//Update Resource
 		con->UpdateSubresource(constantBuffer.Get(), 0, nullptr, &svars, sizeof(SHDR_VARS), 0);
-		con->DrawIndexed(dev4_indexcount, 0, 0);
+		//Draw Mesh
+		for (size_t i = 0; i < sizeof(meshes) / sizeof(meshes[0]); i++)
+		{
+			DrawMesh(meshes[i]);
+		}
 		// release temp handles
 		depth->Release();
 		view->Release();
@@ -261,12 +320,19 @@ public:
 		// ComPtr will auto release so nothing to do here 
 	}
 
+	void ModelSetUp()
+	{
+		FillMesh(meshes[0], test_pyramid_data, test_pyramid_vertexcount, test_pyramid_indicies, test_pyramid_indexcount, L"../Rock.dds");
+		FillMesh(meshes[1], dev4_data, dev4_vertexcount, dev4_indicies, dev4_indexcount, L"../Rock.dds");
+	}
+
 	void SetDeltaTime()
 	{
 		std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
 		timeDeltaTime = std::chrono::duration_cast<std::chrono::microseconds>(now - oldTime).count();
 		timeDeltaTime /= 600000.0;
 		oldTime = now;
+		timeSinceStart += timeDeltaTime;
 	}
 
 	void SetKeyboardInput()
@@ -451,19 +517,36 @@ public:
 			playerVelX += timeDeltaTime / 50.0f;
 			playerVelX = min(playerVelX, 0);
 		}
-		//Apply Camera
+		//Apply Camera Data
 		float ar;
 		d3d.GetAspectRatio(ar);
 		m.ProjectionDirectXLHF(G_DEGREE_TO_RADIAN(fov), ar, nearPlane, farPlane, svars.p);
-		GW::MATH::GMATRIXF rotatedX;
-		GW::MATH::GMATRIXF rotatedY;
+
+		//Get Radians
 		float radianX = G_DEGREE_TO_RADIAN(keys.mouseX / 10.0f);
 		float radianY = G_DEGREE_TO_RADIAN(keys.mouseY / 10.0f);
+
+		//Get Rotation Matrices
+		GW::MATH::GMATRIXF rotatedX;
+		GW::MATH::GMATRIXF rotatedY;
 		m.RotationYawPitchRollF(radianX, 0, 0, rotatedX);
 		m.RotationYawPitchRollF(0, radianY, 0, rotatedY);
-		m.MultiplyMatrixF(rotatedY, viewLocalM, viewLocalM);
-		m.TranslateGlobalF(viewWorldM, GW::MATH::GVECTORF{ -playerVelX,playerVelY,-playerVelZ}, viewWorldM);
-		m.RotateYLocalF(viewWorldM, radianX, viewWorldM);
+		
+		//Edit View Local
+		m.MultiplyMatrixF(viewLocalM, rotatedY, viewLocalM);
+
+		//Edit Character Local
+		m.MultiplyMatrixF(viewWorldM, rotatedX, viewWorldM);
+		m.TranslateLocalF(viewWorldM, GW::MATH::GVECTORF{ -playerVelX,playerVelY,-playerVelZ}, viewWorldM);
+
+		//Multiply views
 		m.MultiplyMatrixF(viewWorldM, viewLocalM, svars.v);
+	}
+
+	void Update()
+	{
+		svars.lightDir.x = sin(timeSinceStart/10.0);
+		svars.lightDir.y = (sin(timeSinceStart/10.0)/2)-1;
+		svars.pointLightPos = GW::MATH::GVECTORF{ (float)cos(timeSinceStart),(float)sin(timeSinceStart),(float)cos(timeSinceStart),1 };
 	}
 };

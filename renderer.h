@@ -16,26 +16,33 @@ cbuffer SHDR_VARS // constant buggers are 16byte aligned
 	matrix w, v, p;
 	float4 lightDir; //adding 1 float for padding
 	float4 lightColor;
+	float4 ambientColor;
+	float4 pointLightPos;
+	float4 pointLightColor;
 };
 
 struct VOUT
 {
 	float4 posH : SV_POSITION;
-	float3 uvw	: TEXCOORD;
+	float3 uvw	: TEXCOORD0;
 	float3 nrm	: NORMAL;
+	float3 plp : TEXCOORD1;
 };
 
 // an ultra simple hlsl vertex shader
-VOUT main(float3 posL : POSITION, float3 uvw : TEXCOORD, float3 nrm : NORMAL)
+VOUT main(float3 posL : POSITION, float3 uvw : TEXCOORD0, float3 nrm : NORMAL)
 {
 	VOUT output;
 	float4 vert = float4(posL, 1);
+	float4 worldPos = mul(vert,w);
 	vert = mul(vert, w);
 	vert = mul(vert, v);
 	vert = mul(vert, p);
 	output.posH = vert;
 	output.uvw = uvw;
 	output.nrm = mul(nrm, w);
+	output.plp = normalize(pointLightPos.xyz-worldPos.xyz);
+
 	return output;
 }
 )";
@@ -59,17 +66,32 @@ SamplerState mysampler;
 struct VOUT
 {
 	float4 posH : SV_POSITION;
-	float3 uvw : TEXCOORD;
+	float3 uvw : TEXCOORD0;
 	float3 nrm : NORMAL;
+	float3 plp : TEXCOORD1;
 };
 
 float4 main(VOUT input) : SV_TARGET 
 {	
 	float4 diffuse = mytexture.Sample(mysampler, input.uvw.xy);
-	float4 light;
-	//light = (saturate(dot(-lightDir.xyz,input.nrm))+ambientColor) * diffuse * lightColor;
-	light = (saturate(dot(normalize(pointLightPos.xyz - input.posH.xyz),input.nrm))) * pointLightColor * diffuse;
+	float4 light = float4(0,0,0,0);
+
+	//Point Light
+	light += (saturate(dot(input.nrm,normalize(input.plp.xyz))) * pointLightColor) * (1.0 - saturate(length(input.plp.xyz-input.nrm)/50));
+
+	//Ambient Light
+	light += ambientColor;
+
+	//Directional Light
+	light += saturate(dot(-lightDir.xyz,input.nrm)) * lightColor;
+	
+	//Final Saturation
 	light = saturate(light);
+	
+	//Final
+	light *= diffuse;
+
+	//Return
 	return light;
 }
 )";
@@ -121,7 +143,7 @@ class Renderer
 		Microsoft::WRL::ComPtr<ID3D11Buffer>		indexBuffer;
 		Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> texture;
 	};
-	MESH meshes[2];
+	MESH meshes[3];
 
 
 
@@ -259,9 +281,9 @@ public:
 		// init light data
 		svars.lightColor = GW::MATH::GVECTORF{ 1,1,1,1 };
 		svars.lightDir = GW::MATH::GVECTORF{ -1,-1,1,0 };
-		svars.pointLightColor = GW::MATH::GVECTORF{ 100.0 / 255.0, 120.0 / 255.0, 200.0 / 255.0,0 };
+		svars.pointLightColor = GW::MATH::GVECTORF{ 255.0 / 255.0,	 179.0 / 255.0,	 15.0 / 255.0	,0 };
 		svars.pointLightPos = GW::MATH::GVECTORF{ 1,-3,1,1 };
-		svars.ambientColor = GW::MATH::GVECTORF{ 39/255.0,18/255.0,53/255.0,0 };
+		svars.ambientColor = GW::MATH::GVECTORF{ 39.0/255.0,	18.0/255.0,		53.0/255.0,0 };
 		GW::MATH::GVector::NormalizeF(svars.lightDir, svars.lightDir);
 
 		//Constant buffer crearte
@@ -324,6 +346,7 @@ public:
 	{
 		FillMesh(meshes[0], test_pyramid_data, test_pyramid_vertexcount, test_pyramid_indicies, test_pyramid_indexcount, L"../Rock.dds");
 		FillMesh(meshes[1], dev4_data, dev4_vertexcount, dev4_indicies, dev4_indexcount, L"../Rock.dds");
+		FillMesh(meshes[2], test_pyramid_data, test_pyramid_vertexcount, test_pyramid_indicies, test_pyramid_indexcount, L"../Rock.dds");
 	}
 
 	void SetDeltaTime()
@@ -547,6 +570,8 @@ public:
 	{
 		svars.lightDir.x = sin(timeSinceStart/10.0);
 		svars.lightDir.y = (sin(timeSinceStart/10.0)/2)-1;
-		svars.pointLightPos = GW::MATH::GVECTORF{ (float)cos(timeSinceStart),(float)sin(timeSinceStart),(float)cos(timeSinceStart),1 };
+		svars.pointLightPos = GW::MATH::GVECTORF{ (float)cos(timeSinceStart),((float)sin(timeSinceStart)+2),(float)cos(timeSinceStart),1 };
+		meshes[0].w.row4 = svars.pointLightPos;
+		meshes[2].w.data[13] = 2;
 	}
 };

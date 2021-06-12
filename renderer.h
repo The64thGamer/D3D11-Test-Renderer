@@ -279,7 +279,7 @@ public:
 		m.ProjectionDirectXLHF(G_DEGREE_TO_RADIAN(fov), ar, 0.1f, 100.0f, svars.p);
 		m.LookAtLHF(GW::MATH::GVECTORF{ 0, 1, 0 }, GW::MATH::GVECTORF{ 0, 1, 0 + 1 }, GW::MATH::GVECTORF{ 0,1,0 }, viewLocalM);
 		// init light data
-		svars.lightColor = GW::MATH::GVECTORF{ 1,1,1,1 };
+		svars.lightColor = GW::MATH::GVECTORF{ .8,.8,.8,1 };
 		svars.lightDir = GW::MATH::GVECTORF{ -1,-1,1,0 };
 		svars.pointLightColor = GW::MATH::GVECTORF{ 255.0 / 255.0,	 179.0 / 255.0,	 15.0 / 255.0	,0 };
 		svars.pointLightPos = GW::MATH::GVECTORF{ 1,-3,1,1 };
@@ -345,7 +345,7 @@ public:
 	void ModelSetUp()
 	{
 		FillMesh(meshes[0], test_pyramid_data, test_pyramid_vertexcount, test_pyramid_indicies, test_pyramid_indexcount, L"../Rock.dds");
-		FillMesh(meshes[1], dev4_data, dev4_vertexcount, dev4_indicies, dev4_indexcount, L"../Rock.dds");
+		FillMesh(meshes[1], dev4_data, dev4_vertexcount, dev4_indicies, dev4_indexcount, L"../dev4.dds");
 		FillMesh(meshes[2], test_pyramid_data, test_pyramid_vertexcount, test_pyramid_indicies, test_pyramid_indexcount, L"../Rock.dds");
 	}
 
@@ -568,8 +568,8 @@ public:
 
 	void Update()
 	{
-		svars.lightDir.x = sin(timeSinceStart/10.0);
-		svars.lightDir.y = (sin(timeSinceStart/10.0)/2)-1;
+		svars.lightDir.x = sin(timeSinceStart/2.0);
+		svars.lightDir.y = (sin(timeSinceStart/2.0)/2)-1;
 		svars.pointLightPos = GW::MATH::GVECTORF{ (float)cos(timeSinceStart),((float)sin(timeSinceStart)+2),(float)cos(timeSinceStart),1 };
 		meshes[0].w.row4 = svars.pointLightPos;
 		meshes[2].w.data[13] = 2;

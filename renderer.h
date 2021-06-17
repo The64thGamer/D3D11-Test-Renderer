@@ -19,6 +19,7 @@ cbuffer SHDR_VARS // constant buggers are 16byte aligned
 	float4 ambientColor;
 	float4 pointLightPos;
 	float4 pointLightColor;
+	float4 camPos;
 };
 
 struct VOUT
@@ -27,6 +28,7 @@ struct VOUT
 	float3 uvw	: TEXCOORD0;
 	float3 nrm	: NORMAL;
 	float3 plp : TEXCOORD1;
+	float3 cam : TEXCOORD2;
 };
 
 // an ultra simple hlsl vertex shader
@@ -42,7 +44,7 @@ VOUT main(float3 posL : POSITION, float3 uvw : TEXCOORD0, float3 nrm : NORMAL)
 	output.uvw = uvw;
 	output.nrm = mul(nrm, w);
 	output.plp = normalize(pointLightPos.xyz-worldPos.xyz);
-
+	output.cam = normalize(camPos.xyz - worldPos.xyz);
 	return output;
 }
 )";
@@ -57,6 +59,7 @@ cbuffer SHDR_VARS // constant buggers are 16byte aligned
 	float4 ambientColor;
 	float4 pointLightPos;
 	float4 pointLightColor;
+	float4 camPos;
 };
 
 
@@ -69,6 +72,7 @@ struct VOUT
 	float3 uvw : TEXCOORD0;
 	float3 nrm : NORMAL;
 	float3 plp : TEXCOORD1;
+	float3 cam : TEXCOORD2;
 };
 
 float4 main(VOUT input) : SV_TARGET 
@@ -77,19 +81,24 @@ float4 main(VOUT input) : SV_TARGET
 	float4 light = float4(0,0,0,0);
 
 	//Point Light
-	light += (saturate(dot(input.nrm,normalize(input.plp.xyz))) * pointLightColor) * (1.0 - saturate(length(input.plp.xyz-input.nrm)/50));
+	float distance = length(input.plp.xyz);
+	distance *= distance;
+	light +=saturate(dot(input.nrm, input.plp.xyz)) * pointLightColor / distance;
 
 	//Ambient Light
 	light += ambientColor;
 
 	//Directional Light
 	light += saturate(dot(-lightDir.xyz,input.nrm)) * lightColor;
-	
-	//Final Saturation
-	light = saturate(light);
+
+	//Phong
+	light += pow(saturate(dot(input.nrm, normalize(input.plp.xyz + input.cam.xyz))), 20.0f);	
 	
 	//Final
 	light *= diffuse;
+	
+	//Final Saturation
+	light = saturate(light);
 
 	//Return
 	return light;
@@ -166,6 +175,7 @@ class Renderer
 		GW::MATH::GVECTORF ambientColor;
 		GW::MATH::GVECTORF pointLightPos;
 		GW::MATH::GVECTORF pointLightColor;
+		GW::MATH::GVECTORF camPos;
 	}svars;
 	//math lib
 	GW::MATH::GMatrix m;
@@ -279,9 +289,9 @@ public:
 		m.ProjectionDirectXLHF(G_DEGREE_TO_RADIAN(fov), ar, 0.1f, 100.0f, svars.p);
 		m.LookAtLHF(GW::MATH::GVECTORF{ 0, 1, 0 }, GW::MATH::GVECTORF{ 0, 1, 0 + 1 }, GW::MATH::GVECTORF{ 0,1,0 }, viewLocalM);
 		// init light data
-		svars.lightColor = GW::MATH::GVECTORF{ .8,.8,.8,1 };
+		svars.lightColor = GW::MATH::GVECTORF{ .6,.6,.7,1 };
 		svars.lightDir = GW::MATH::GVECTORF{ -1,-1,1,0 };
-		svars.pointLightColor = GW::MATH::GVECTORF{ 255.0 / 255.0,	 179.0 / 255.0,	 15.0 / 255.0	,0 };
+		svars.pointLightColor = GW::MATH::GVECTORF{ 255.0 / 255.0/2.0,	 179.0 / 255.0 / 2.0,	 15.0 / 255.0 / 2.0	,0 };
 		svars.pointLightPos = GW::MATH::GVECTORF{ 1,-3,1,1 };
 		svars.ambientColor = GW::MATH::GVECTORF{ 39.0/255.0,	18.0/255.0,		53.0/255.0,0 };
 		GW::MATH::GVector::NormalizeF(svars.lightDir, svars.lightDir);
@@ -568,6 +578,7 @@ public:
 
 	void Update()
 	{
+		svars.camPos = GW::MATH::GVECTORF{ viewLocalM.data[12],viewLocalM.data[13],viewLocalM.data[14] };
 		svars.lightDir.x = sin(timeSinceStart/2.0);
 		svars.lightDir.y = (sin(timeSinceStart/2.0)/2)-1;
 		svars.pointLightPos = GW::MATH::GVECTORF{ (float)cos(timeSinceStart),((float)sin(timeSinceStart)+2),(float)cos(timeSinceStart),1 };

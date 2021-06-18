@@ -20,6 +20,11 @@ cbuffer SHDR_VARS // constant buggers are 16byte aligned
 	float4 pointLightPos;
 	float4 pointLightColor;
 	float4 camPos;
+	float4 spotLightPos;
+	float4 spotLightDir;
+	float4 spotLightColor;
+	float4 innerConeRatio;
+	float4 outerConeRatio;
 };
 
 struct VOUT
@@ -29,6 +34,7 @@ struct VOUT
 	float3 nrm	: NORMAL;
 	float3 plp : TEXCOORD1;
 	float3 cam : TEXCOORD2;
+	float3 slp : TEXCOORD3;
 };
 
 // an ultra simple hlsl vertex shader
@@ -44,6 +50,7 @@ VOUT main(float3 posL : POSITION, float3 uvw : TEXCOORD0, float3 nrm : NORMAL)
 	output.uvw = uvw;
 	output.nrm = mul(nrm, w);
 	output.plp = normalize(pointLightPos.xyz-worldPos.xyz);
+	output.slp = normalize(spotLightPos.xyz-worldPos.xyz);
 	output.cam = normalize(camPos.xyz - worldPos.xyz);
 	return output;
 }
@@ -60,6 +67,11 @@ cbuffer SHDR_VARS // constant buggers are 16byte aligned
 	float4 pointLightPos;
 	float4 pointLightColor;
 	float4 camPos;
+	float4 spotLightPos;
+	float4 spotLightDir;
+	float4 spotLightColor;
+	float4 innerConeRatio;
+	float4 outerConeRatio;
 };
 
 
@@ -73,6 +85,7 @@ struct VOUT
 	float3 nrm : NORMAL;
 	float3 plp : TEXCOORD1;
 	float3 cam : TEXCOORD2;
+	float3 slp : TEXCOORD3;
 };
 
 float4 main(VOUT input) : SV_TARGET 
@@ -85,6 +98,15 @@ float4 main(VOUT input) : SV_TARGET
 	distance *= distance;
 	light +=saturate(dot(input.nrm, input.plp.xyz)) * pointLightColor / distance;
 
+	//Spot Light
+	distance = length(input.slp.xyz);
+	distance *= distance;
+	float surfaceRatio = saturate(dot(-input.slp.xyz,spotLightDir.xyz));
+	float lightRatio = saturate(dot(input.slp.xyz,input.nrm.xyz));
+	float spotAtten = 1.0 - saturate((innerConeRatio.x - surfaceRatio)/(innerConeRatio.x - outerConeRatio.x));
+	spotAtten *= spotAtten;
+	light += lightRatio * spotLightColor * spotAtten * distance;
+
 	//Ambient Light
 	light += ambientColor;
 
@@ -92,7 +114,8 @@ float4 main(VOUT input) : SV_TARGET
 	light += saturate(dot(-lightDir.xyz,input.nrm)) * lightColor;
 
 	//Phong
-	light += pow(saturate(dot(input.nrm, normalize(input.plp.xyz + input.cam.xyz))), 20.0f);	
+	light += max(pow(saturate(dot(input.nrm, normalize(-input.plp.xyz + input.cam.xyz))), 30.0f),0);	
+	light += max(pow(saturate(dot(input.nrm, normalize(-input.slp.xyz + input.cam.xyz))), 30.0f),0);	
 	
 	//Final
 	light *= diffuse;
@@ -176,6 +199,11 @@ class Renderer
 		GW::MATH::GVECTORF pointLightPos;
 		GW::MATH::GVECTORF pointLightColor;
 		GW::MATH::GVECTORF camPos;
+		GW::MATH::GVECTORF spotLightPos;
+		GW::MATH::GVECTORF spotLightDir;
+		GW::MATH::GVECTORF spotLightColor;
+		GW::MATH::GVECTORF innerConeRatio;
+		GW::MATH::GVECTORF outerConeRatio;
 	}svars;
 	//math lib
 	GW::MATH::GMatrix m;
@@ -294,6 +322,11 @@ public:
 		svars.pointLightColor = GW::MATH::GVECTORF{ 255.0 / 255.0/2.0,	 179.0 / 255.0 / 2.0,	 15.0 / 255.0 / 2.0	,0 };
 		svars.pointLightPos = GW::MATH::GVECTORF{ 1,-3,1,1 };
 		svars.ambientColor = GW::MATH::GVECTORF{ 39.0/255.0,	18.0/255.0,		53.0/255.0,0 };
+		svars.spotLightColor = GW::MATH::GVECTORF{ 75.0 / 255.0,	 255 / 255.0,	 105.0 / 255.0,		0 };
+		svars.spotLightPos = GW::MATH::GVECTORF{ 4,-5,4,1 };
+		svars.spotLightDir = GW::MATH::GVECTORF{ 1,-1,1,0 };
+		svars.innerConeRatio.x = .2;
+		svars.outerConeRatio.x = .2;
 		GW::MATH::GVector::NormalizeF(svars.lightDir, svars.lightDir);
 
 		//Constant buffer crearte
@@ -582,6 +615,9 @@ public:
 		svars.lightDir.x = sin(timeSinceStart/2.0);
 		svars.lightDir.y = (sin(timeSinceStart/2.0)/2)-1;
 		svars.pointLightPos = GW::MATH::GVECTORF{ (float)cos(timeSinceStart),((float)sin(timeSinceStart)+2),(float)cos(timeSinceStart),1 };
+		svars.spotLightPos = GW::MATH::GVECTORF{ (float)cos(timeSinceStart)+10,3,(float)cos(timeSinceStart),1 };
+		svars.innerConeRatio.x = 0.4f - min(sin(timeSinceStart), 0.0f);
+		svars.outerConeRatio.x = 0.4f ;
 		meshes[0].w.row4 = svars.pointLightPos;
 		meshes[2].w.data[13] = 2;
 	}

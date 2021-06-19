@@ -123,6 +123,8 @@ float4 main(VOUT input) : SV_TARGET
 	//Final Saturation
 	light = saturate(light);
 
+	light.w = diffuse.w;
+
 	//Return
 	return light;
 }
@@ -188,6 +190,7 @@ class Renderer
 	Microsoft::WRL::ComPtr<ID3D11VertexShader>	vertexShader;
 	Microsoft::WRL::ComPtr<ID3D11PixelShader>	pixelShader;
 	Microsoft::WRL::ComPtr<ID3D11InputLayout>	vertexFormat;
+	ID3D11BlendState* g_pBlendStateNoBlend;
 	// Shader Variables
 	Microsoft::WRL::ComPtr<ID3D11Buffer>		constantBuffer;
 	struct SHDR_VARS
@@ -209,16 +212,16 @@ class Renderer
 	GW::MATH::GMatrix m;
 
 public:
-	bool FillMesh(MESH &fill, const OBJ_VERT* verts, unsigned num_vert, const unsigned* indices, unsigned num_index,const wchar_t* tex_file)
+	bool FillMesh(MESH& fill, const OBJ_VERT* verts, unsigned num_vert, const unsigned* indices, unsigned num_index, const wchar_t* tex_file)
 	{
 		ID3D11Device* creator;
 		d3d.GetDevice((void**)&creator);
 
-		D3D11_SUBRESOURCE_DATA bData = {verts , 0, 0 };
+		D3D11_SUBRESOURCE_DATA bData = { verts , 0, 0 };
 		CD3D11_BUFFER_DESC bDesc(sizeof(OBJ_VERT) * num_vert, D3D11_BIND_VERTEX_BUFFER);
 		creator->CreateBuffer(&bDesc, &bData, fill.vertexBuffer.GetAddressOf());
 		//index buffer
-		D3D11_SUBRESOURCE_DATA iData = {indices , 0, 0 };
+		D3D11_SUBRESOURCE_DATA iData = { indices , 0, 0 };
 		CD3D11_BUFFER_DESC iDesc(sizeof(unsigned) * num_index, D3D11_BIND_INDEX_BUFFER);
 		creator->CreateBuffer(&iDesc, &iData, fill.indexBuffer.GetAddressOf());
 		fill.index_count = num_index;
@@ -319,9 +322,9 @@ public:
 		// init light data
 		svars.lightColor = GW::MATH::GVECTORF{ .6,.6,.7,1 };
 		svars.lightDir = GW::MATH::GVECTORF{ -1,-1,1,0 };
-		svars.pointLightColor = GW::MATH::GVECTORF{ 255.0 / 255.0/2.0,	 179.0 / 255.0 / 2.0,	 15.0 / 255.0 / 2.0	,0 };
+		svars.pointLightColor = GW::MATH::GVECTORF{ 255.0 / 255.0 / 2.0,	 179.0 / 255.0 / 2.0,	 15.0 / 255.0 / 2.0	,0 };
 		svars.pointLightPos = GW::MATH::GVECTORF{ 1,-3,1,1 };
-		svars.ambientColor = GW::MATH::GVECTORF{ 39.0/255.0,	18.0/255.0,		53.0/255.0,0 };
+		svars.ambientColor = GW::MATH::GVECTORF{ 39.0 / 255.0,	18.0 / 255.0,		53.0 / 255.0,0 };
 		svars.spotLightColor = GW::MATH::GVECTORF{ 75.0 / 255.0,	 255 / 255.0,	 105.0 / 255.0,		0 };
 		svars.spotLightPos = GW::MATH::GVECTORF{ 4,-5,4,1 };
 		svars.spotLightDir = GW::MATH::GVECTORF{ 1,-1,1,0 };
@@ -329,11 +332,32 @@ public:
 		svars.outerConeRatio.x = .2;
 		GW::MATH::GVector::NormalizeF(svars.lightDir, svars.lightDir);
 
+		//Blend State
+		D3D11_BLEND_DESC blendDesc;
+
+		//Set Settings
+		blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+		blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+		blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+		blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+		blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
+		blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ZERO;
+		blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+
+		//Bool Settings
+		blendDesc.AlphaToCoverageEnable = false;
+		blendDesc.IndependentBlendEnable = false;
+		blendDesc.RenderTarget[0].BlendEnable = true;
+
+		//Create Blend State
+		creator->CreateBlendState(&blendDesc, &g_pBlendStateNoBlend);
+
+
 		//Constant buffer crearte
 		D3D11_SUBRESOURCE_DATA cData = { &svars, 0, 0 };
 		CD3D11_BUFFER_DESC cDesc(sizeof(SHDR_VARS), D3D11_BIND_CONSTANT_BUFFER);
 		creator->CreateBuffer(&cDesc, &cData, constantBuffer.GetAddressOf());
-		
+
 		//Set Up Models
 		ModelSetUp();
 
@@ -370,12 +394,19 @@ public:
 		con->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 		//Update Resource
 		con->UpdateSubresource(constantBuffer.Get(), 0, nullptr, &svars, sizeof(SHDR_VARS), 0);
+
+		//Update Blend State
+		float bf[] = { 1.0f, 1.0f, 1.0f, 1.0f };
+		UINT sampleMask = 0xffffffff;
+		con->OMSetBlendState(g_pBlendStateNoBlend, bf, sampleMask);
+
 		//Draw Mesh
 		for (size_t i = 0; i < sizeof(meshes) / sizeof(meshes[0]); i++)
 		{
 			DrawMesh(meshes[i]);
 		}
 		// release temp handles
+		con->OMSetBlendState(nullptr, 0,0);
 		depth->Release();
 		view->Release();
 		con->Release();
@@ -597,13 +628,13 @@ public:
 		GW::MATH::GMATRIXF rotatedY;
 		m.RotationYawPitchRollF(radianX, 0, 0, rotatedX);
 		m.RotationYawPitchRollF(0, radianY, 0, rotatedY);
-		
+
 		//Edit View Local
 		m.MultiplyMatrixF(viewLocalM, rotatedY, viewLocalM);
 
 		//Edit Character Local
 		m.MultiplyMatrixF(viewWorldM, rotatedX, viewWorldM);
-		m.TranslateLocalF(viewWorldM, GW::MATH::GVECTORF{ -playerVelX,playerVelY,-playerVelZ}, viewWorldM);
+		m.TranslateLocalF(viewWorldM, GW::MATH::GVECTORF{ -playerVelX,playerVelY,-playerVelZ }, viewWorldM);
 
 		//Multiply views
 		m.MultiplyMatrixF(viewWorldM, viewLocalM, svars.v);
@@ -611,13 +642,15 @@ public:
 
 	void Update()
 	{
+
 		svars.camPos = GW::MATH::GVECTORF{ viewLocalM.data[12],viewLocalM.data[13],viewLocalM.data[14] };
-		svars.lightDir.x = sin(timeSinceStart/2.0);
-		svars.lightDir.y = (sin(timeSinceStart/2.0)/2)-1;
-		svars.pointLightPos = GW::MATH::GVECTORF{ (float)cos(timeSinceStart),((float)sin(timeSinceStart)+2),(float)cos(timeSinceStart),1 };
-		svars.spotLightPos = GW::MATH::GVECTORF{ (float)cos(timeSinceStart)+10,3,(float)cos(timeSinceStart),1 };
+		svars.lightDir.x = sin(timeSinceStart / 2.0);
+		svars.lightDir.y = (sin(timeSinceStart / 2.0) / 2) - 1;
+		svars.pointLightPos = GW::MATH::GVECTORF{ (float)cos(timeSinceStart),((float)sin(timeSinceStart) + 2),(float)cos(timeSinceStart),1 };
+		svars.spotLightPos = GW::MATH::GVECTORF{ (float)cos(timeSinceStart) + 10,3,(float)cos(timeSinceStart),1 };
 		svars.innerConeRatio.x = 0.4f - min(sin(timeSinceStart), 0.0f);
-		svars.outerConeRatio.x = 0.4f ;
+		svars.outerConeRatio.x = 0.4f;
+		svars.spotLightDir.x = sin(timeSinceStart / 2.0);
 		meshes[0].w.row4 = svars.pointLightPos;
 		meshes[2].w.data[13] = 2;
 	}

@@ -481,8 +481,8 @@ public:
 		srand(time(NULL));
 		for (size_t i = 0; i < 4; i++)
 		{
-			int n = rand() % 16 -8;
-			int m = rand() % 16 -8;
+			int n = rand() % 20 -10;
+			int m = rand() % 20 -10;
 			transMeshes[0 + (5 * i)].w.data[12] = -0.3 + n;
 			transMeshes[0 + (5 * i)].w.data[13] = -1.7f;
 			transMeshes[0 + (5 * i)].w.data[14] = .5 + m;
@@ -708,15 +708,15 @@ public:
 		//Get Rotation Matrices
 		GW::MATH::GMATRIXF rotatedX;
 		GW::MATH::GMATRIXF rotatedY;
-		m.RotationYawPitchRollF(radianX, 0, 0, rotatedX);
-		m.RotationYawPitchRollF(0, radianY, 0, rotatedY);
+		m.RotationYawPitchRollF(-radianX, 0, 0, rotatedX);
+		m.RotationYawPitchRollF(0, -radianY, 0, rotatedY);
 
 		//Edit View Local
 		m.MultiplyMatrixF(viewLocalM, rotatedY, viewLocalM);
 
 		//Edit Character Local
 		m.MultiplyMatrixF(viewWorldM, rotatedX, viewWorldM);
-		m.TranslateLocalF(viewWorldM, GW::MATH::GVECTORF{ -playerVelX,playerVelY,-playerVelZ }, viewWorldM);
+		m.TranslateGlobalF(viewWorldM, GW::MATH::GVECTORF{ -playerVelX,playerVelY,-playerVelZ }, viewWorldM);
 
 		//Multiply views
 		m.MultiplyMatrixF(viewWorldM, viewLocalM, svars.v);

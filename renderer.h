@@ -3,7 +3,15 @@
 #include <d3dcompiler.h>
 #include "test_pyramid.h"
 #include "dev4.h"
+#include "red.h"
+#include "yellow.h"
+#include "green.h"
+#include "blue.h"
+#include "purple.h"
 #include "DDSTextureLoader.h"
+#include <numeric> 
+#include <functional>
+using namespace std::placeholders;
 #pragma comment(lib, "d3dcompiler.lib")
 // Simple Vertex Shader
 
@@ -125,11 +133,20 @@ float4 main(VOUT input) : SV_TARGET
 
 	light.w = diffuse.w;
 
+	if(light.w < 0.05)
+	{
+		discard;
+	}
+
 	//Return
 	return light;
 }
 )";
 // Creation, Rendering & Cleanup
+bool CompareData(int first, int second, float* indexData)
+{
+	return indexData[first] < indexData[second];
+}
 class Renderer
 {
 	//Variables
@@ -178,7 +195,9 @@ class Renderer
 		Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> texture;
 	};
 	MESH meshes[3];
-
+	MESH transMeshes[20];
+	float transMeshDistance[20];
+	int transMeshIndex[20];
 
 
 	//SETUP
@@ -212,6 +231,7 @@ class Renderer
 	GW::MATH::GMatrix m;
 
 public:
+
 	bool FillMesh(MESH& fill, const OBJ_VERT* verts, unsigned num_vert, const unsigned* indices, unsigned num_index, const wchar_t* tex_file)
 	{
 		ID3D11Device* creator;
@@ -235,6 +255,7 @@ public:
 
 		return true;
 	}
+	
 	void DrawMesh(const MESH& draw)
 	{
 		ID3D11DeviceContext* con;
@@ -364,6 +385,7 @@ public:
 		// free temporary handle
 		creator->Release();
 	}
+	
 	void Render()
 	{
 		//Input
@@ -405,12 +427,26 @@ public:
 		{
 			DrawMesh(meshes[i]);
 		}
+
+		//Draw Transparent Mesh
+		for (size_t i = 0; i < sizeof(transMeshDistance) / sizeof(transMeshDistance[0]); i++)
+		{
+			transMeshDistance[i] = sqrt(pow((viewWorldM.data[12] - transMeshes[i].w.data[12]), 2) + pow((viewWorldM.data[13] - transMeshes[i].w.data[13]), 2) + pow((viewWorldM.data[14] - transMeshes[i].w.data[14]), 2));
+		}
+		std::iota(std::begin(transMeshIndex), std::end(transMeshIndex), 0);
+		std::sort(std::begin(transMeshIndex), std::end(transMeshIndex), std::bind(CompareData, _1, _2, transMeshDistance));
+		for (size_t i = 0; i < sizeof(transMeshDistance) / sizeof(transMeshDistance[0]); i++)
+		{
+			DrawMesh(transMeshes[transMeshIndex[i]]);
+		}
+
 		// release temp handles
 		con->OMSetBlendState(nullptr, 0,0);
 		depth->Release();
 		view->Release();
 		con->Release();
 	}
+
 	~Renderer()
 	{
 		// ComPtr will auto release so nothing to do here 
@@ -421,6 +457,52 @@ public:
 		FillMesh(meshes[0], test_pyramid_data, test_pyramid_vertexcount, test_pyramid_indicies, test_pyramid_indexcount, L"../Rock.dds");
 		FillMesh(meshes[1], dev4_data, dev4_vertexcount, dev4_indicies, dev4_indexcount, L"../dev4.dds");
 		FillMesh(meshes[2], test_pyramid_data, test_pyramid_vertexcount, test_pyramid_indicies, test_pyramid_indexcount, L"../Rock.dds");
+		FillMesh(transMeshes[0], red_data, red_vertexcount, red_indicies, red_indexcount, L"../dev4.dds");
+		FillMesh(transMeshes[1], yellow_data, yellow_vertexcount, yellow_indicies, yellow_indexcount, L"../dev4.dds");
+		FillMesh(transMeshes[2], green_data, green_vertexcount, green_indicies, green_indexcount, L"../dev4.dds");
+		FillMesh(transMeshes[3], blue_data, blue_vertexcount, blue_indicies, blue_indexcount, L"../dev4.dds");
+		FillMesh(transMeshes[4], purple_data, purple_vertexcount, purple_indicies, purple_indexcount, L"../dev4.dds");
+		FillMesh(transMeshes[5], red_data, red_vertexcount, red_indicies, red_indexcount, L"../dev4.dds");
+		FillMesh(transMeshes[6], yellow_data, yellow_vertexcount, yellow_indicies, yellow_indexcount, L"../dev4.dds");
+		FillMesh(transMeshes[7], green_data, green_vertexcount, green_indicies, green_indexcount, L"../dev4.dds");
+		FillMesh(transMeshes[8], blue_data, blue_vertexcount, blue_indicies, blue_indexcount, L"../dev4.dds");
+		FillMesh(transMeshes[9], purple_data, purple_vertexcount, purple_indicies, purple_indexcount, L"../dev4.dds");
+		FillMesh(transMeshes[10], red_data, red_vertexcount, red_indicies, red_indexcount, L"../dev4.dds");
+		FillMesh(transMeshes[11], yellow_data, yellow_vertexcount, yellow_indicies, yellow_indexcount, L"../dev4.dds");
+		FillMesh(transMeshes[12], green_data, green_vertexcount, green_indicies, green_indexcount, L"../dev4.dds");
+		FillMesh(transMeshes[13], blue_data, blue_vertexcount, blue_indicies, blue_indexcount, L"../dev4.dds");
+		FillMesh(transMeshes[14], purple_data, purple_vertexcount, purple_indicies, purple_indexcount, L"../dev4.dds");
+		FillMesh(transMeshes[15], red_data, red_vertexcount, red_indicies, red_indexcount, L"../dev4.dds");
+		FillMesh(transMeshes[16], yellow_data, yellow_vertexcount, yellow_indicies, yellow_indexcount, L"../dev4.dds");
+		FillMesh(transMeshes[17], green_data, green_vertexcount, green_indicies, green_indexcount, L"../dev4.dds");
+		FillMesh(transMeshes[18], blue_data, blue_vertexcount, blue_indicies, blue_indexcount, L"../dev4.dds");
+		FillMesh(transMeshes[19], purple_data, purple_vertexcount, purple_indicies, purple_indexcount, L"../dev4.dds");
+		//Balloon Offset
+		srand(time(NULL));
+		for (size_t i = 0; i < 4; i++)
+		{
+			int n = rand() % 16 -8;
+			int m = rand() % 16 -8;
+			transMeshes[0 + (5 * i)].w.data[12] = -0.3 + n;
+			transMeshes[0 + (5 * i)].w.data[13] = -1.7f;
+			transMeshes[0 + (5 * i)].w.data[14] = .5 + m;
+
+			transMeshes[1 + (5 * i)].w.data[12] = -.4 + n;
+			transMeshes[1 + (5 * i)].w.data[13] = 0;
+			transMeshes[1 + (5 * i)].w.data[14] = .3 + m;
+
+			transMeshes[2 + (5 * i)].w.data[12] = .4 + n;
+			transMeshes[2 + (5 * i)].w.data[13] = -1;
+			transMeshes[2 + (5 * i)].w.data[14] = .3 + m;
+
+			transMeshes[3 + (5 * i)].w.data[12] = .9 + n;
+			transMeshes[3 + (5 * i)].w.data[13] = -3;
+			transMeshes[3 + (5 * i)].w.data[14] = .9 + m;
+
+			transMeshes[4 + (5 * i)].w.data[12] = -.9 + n;
+			transMeshes[4 + (5 * i)].w.data[13] = -2;
+			transMeshes[4 + (5 * i)].w.data[14] = -.6 + m;
+		}
 	}
 
 	void SetDeltaTime()

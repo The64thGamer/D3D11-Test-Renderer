@@ -157,7 +157,7 @@ class Renderer
 	float fov = 75;
 	float nearFarSpeed = 0;
 	float nearPlane = 0.1f;
-	float farPlane = 100.0f;
+	float farPlane = 1000.0f;
 	float playerVelX = 0;
 	float playerVelZ = 0;
 	float playerVelY = 0;
@@ -178,6 +178,8 @@ class Renderer
 		bool one;
 		float mouseX;
 		float mouseY;
+		bool e;
+		bool q;
 	};
 	InputKeyboard keys;
 
@@ -338,15 +340,15 @@ public:
 		viewWorldM.data[14] = 1;
 		float ar;
 		d3d.GetAspectRatio(ar);
-		m.ProjectionDirectXLHF(G_DEGREE_TO_RADIAN(fov), ar, 0.1f, 100.0f, svars.p);
+		m.ProjectionDirectXLHF(G_DEGREE_TO_RADIAN(fov), ar, 0.1f, 1000.0f, svars.p);
 		m.LookAtLHF(GW::MATH::GVECTORF{ 0, 1, 0 }, GW::MATH::GVECTORF{ 0, 1, 0 + 1 }, GW::MATH::GVECTORF{ 0,1,0 }, viewLocalM);
 		// init light data
-		svars.lightColor = GW::MATH::GVECTORF{ .6,.6,.7,1 };
+		svars.lightColor = GW::MATH::GVECTORF{ .3,.3,.8,1 };
 		svars.lightDir = GW::MATH::GVECTORF{ -1,-1,1,0 };
 		svars.pointLightColor = GW::MATH::GVECTORF{ 255.0 / 255.0 / 2.0,	 179.0 / 255.0 / 2.0,	 15.0 / 255.0 / 2.0	,0 };
 		svars.pointLightPos = GW::MATH::GVECTORF{ 1,-3,1,1 };
 		svars.ambientColor = GW::MATH::GVECTORF{ 39.0 / 255.0,	18.0 / 255.0,		53.0 / 255.0,0 };
-		svars.spotLightColor = GW::MATH::GVECTORF{ 75.0 / 255.0,	 255 / 255.0,	 105.0 / 255.0,		0 };
+		svars.spotLightColor = GW::MATH::GVECTORF{ .8,	 .8,	 .8,		0 };
 		svars.spotLightPos = GW::MATH::GVECTORF{ 4,-5,4,1 };
 		svars.spotLightDir = GW::MATH::GVECTORF{ 1,-1,1,0 };
 		svars.innerConeRatio.x = .2;
@@ -533,6 +535,8 @@ public:
 		float one = 0;
 		float mouseX = 0;
 		float mouseY = 0;
+		float e = 0;
+		float q = 0;
 		ginput.GetState(60, w);
 		ginput.GetState(38, a);
 		ginput.GetState(56, s);
@@ -548,6 +552,8 @@ public:
 		ginput.GetState(6, bracketR);
 		ginput.GetState(7, bracketL);
 		ginput.GetState(65, one);
+		ginput.GetState(42, e);
+		ginput.GetState(54, q);
 		GW::GReturn result = ginput.GetMouseDelta(mouseX, mouseY);
 		if (result == GW::GReturn::REDUNDANT)
 		{
@@ -567,6 +573,8 @@ public:
 		keys.one = (one);
 		keys.mouseX = mouseX;
 		keys.mouseY = mouseY;
+		keys.e = e;
+		keys.q = q;
 	}
 
 	void Physics()
@@ -649,7 +657,7 @@ public:
 		float maxed = .001f;
 		if (keys.shift)
 		{
-			maxed *= 2;
+			maxed *= 3;
 		}
 		if (keys.up)
 		{
@@ -696,6 +704,29 @@ public:
 			playerVelX += timeDeltaTime / 50.0f;
 			playerVelX = min(playerVelX, 0);
 		}
+
+		if (keys.e)
+		{
+			playerVelY += timeDeltaTime / 50.0f;
+			playerVelY = max(playerVelY, -maxed);
+			playerVelY = min(playerVelY, maxed);
+		}
+		else if (keys.q)
+		{
+			playerVelY -= timeDeltaTime / 50.0f;
+			playerVelY = max(playerVelY, -maxed);
+			playerVelY = min(playerVelY, maxed);
+		}
+		else if (playerVelY > 0)
+		{
+			playerVelY -= timeDeltaTime / 50.0f;
+			playerVelY = max(playerVelY, 0);
+		}
+		else if (playerVelY < 0)
+		{
+			playerVelY += timeDeltaTime / 50.0f;
+			playerVelY = min(playerVelY, 0);
+		}
 		//Apply Camera Data
 		float ar;
 		d3d.GetAspectRatio(ar);
@@ -724,7 +755,6 @@ public:
 
 	void Update()
 	{
-
 		svars.camPos = GW::MATH::GVECTORF{ viewLocalM.data[12],viewLocalM.data[13],viewLocalM.data[14] };
 		svars.lightDir.x = sin(timeSinceStart / 2.0);
 		svars.lightDir.y = (sin(timeSinceStart / 2.0) / 2) - 1;

@@ -26,12 +26,12 @@ int main()
 	if (+win.Create(0, 0, 800, 600, GWindowStyle::WINDOWEDBORDERED))
 	{
 		std::cout << "WASD + Arrow Keys             -     Move\n" <<
-			"Space                         -     Jump\n" <<
+			"E + Q                         -     Up / Down\n" <<
 			"Shift                         -     Run\n" <<
 			"Plus/Minus                    -     Adjust FOV\n" <<
 			"Left/Right Bracket            -     Near Plane Adjustment\n" <<
 			"(Shift)Left/Right Bracket     -     Far Plane Adjustment\n";
-		float clr[] = { 134 /255.0f, 175 / 255.0f, 186 /255.0f, 1 }; // start with a neon green
+		float clr[] = { 25 /255.0f, 25 / 255.0f, 125 /255.0f, 1 }; // start with a neon green
 		msgs.Create([&](const GW::GEvent& e) {
 			GW::SYSTEM::GWindow::Events q;
 		});

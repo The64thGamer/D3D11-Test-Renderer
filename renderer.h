@@ -451,12 +451,15 @@ public:
 		}
 
 		//Draw Transparent Mesh
+		GW::MATH::GMATRIXF temptemp;
+		m.InverseF(svars.v, temptemp);
 		for (size_t i = 0; i < sizeof(transMeshDistance) / sizeof(transMeshDistance[0]); i++)
 		{
-			transMeshDistance[i] = sqrt(pow((viewWorldM.data[12] - transMeshes[i].w.data[12]), 2) + pow((viewWorldM.data[13] - transMeshes[i].w.data[13]), 2) + pow((viewWorldM.data[14] - transMeshes[i].w.data[14]), 2));
+			transMeshDistance[i] = sqrt(pow((temptemp.data[12] - transMeshes[i].w.data[12]), 2) + pow((temptemp.data[13] - transMeshes[i].w.data[13]), 2) + pow((temptemp.data[14] - transMeshes[i].w.data[14]), 2));
 		}
 		std::iota(std::begin(transMeshIndex), std::end(transMeshIndex), 0);
 		std::sort(std::begin(transMeshIndex), std::end(transMeshIndex), std::bind(CompareData, _1, _2, transMeshDistance));
+		std::reverse(std::begin(transMeshIndex), std::end(transMeshIndex));
 		for (size_t i = 0; i < sizeof(transMeshDistance) / sizeof(transMeshDistance[0]); i++)
 		{
 			DrawMesh(transMeshes[transMeshIndex[i]]);
@@ -506,24 +509,25 @@ public:
 		{
 			int n = rand() % 20 -10;
 			int m = rand() % 20 -10;
+			int b = 5;
 			transMeshes[0 + (5 * i)].w.data[12] = -0.3 + n;
-			transMeshes[0 + (5 * i)].w.data[13] = -1.7f;
+			transMeshes[0 + (5 * i)].w.data[13] = -1.7f + b;
 			transMeshes[0 + (5 * i)].w.data[14] = .5 + m;
 
 			transMeshes[1 + (5 * i)].w.data[12] = -.4 + n;
-			transMeshes[1 + (5 * i)].w.data[13] = 0;
+			transMeshes[1 + (5 * i)].w.data[13] = 0 + b;
 			transMeshes[1 + (5 * i)].w.data[14] = .3 + m;
 
 			transMeshes[2 + (5 * i)].w.data[12] = .4 + n;
-			transMeshes[2 + (5 * i)].w.data[13] = -1;
+			transMeshes[2 + (5 * i)].w.data[13] = -1 + b;
 			transMeshes[2 + (5 * i)].w.data[14] = .3 + m;
 
 			transMeshes[3 + (5 * i)].w.data[12] = .9 + n;
-			transMeshes[3 + (5 * i)].w.data[13] = -3;
+			transMeshes[3 + (5 * i)].w.data[13] = -3 + b;
 			transMeshes[3 + (5 * i)].w.data[14] = .9 + m;
 
 			transMeshes[4 + (5 * i)].w.data[12] = -.9 + n;
-			transMeshes[4 + (5 * i)].w.data[13] = -2;
+			transMeshes[4 + (5 * i)].w.data[13] = -2 + b;
 			transMeshes[4 + (5 * i)].w.data[14] = -.6 + m;
 		}
 	}
@@ -776,14 +780,17 @@ public:
 
 	void Update()
 	{
-		svars.camPos = GW::MATH::GVECTORF{ viewLocalM.data[12],viewLocalM.data[13],viewLocalM.data[14] };
+		GW::MATH::GMATRIXF temptemp;
+		m.InverseF(svars.v, temptemp);
+		svars.camPos = GW::MATH::GVECTORF{ temptemp.data[12],temptemp.data[13],temptemp.data[14] };
 		svars.lightDir.x = sin(timeSinceStart / 2.0);
 		svars.lightDir.y = (sin(timeSinceStart / 2.0) / 2) - 1;
 		svars.pointLightPos = GW::MATH::GVECTORF{ (float)cos(timeSinceStart),((float)sin(timeSinceStart) + 2),(float)cos(timeSinceStart),1 };
 		svars.spotLightPos = GW::MATH::GVECTORF{ (float)cos(timeSinceStart) + 10,3,(float)cos(timeSinceStart),1 };
+		svars.spotLightDir.x = sin(timeSinceStart / 2.0);
 		svars.innerConeRatio.x = 0.4f - min(sin(timeSinceStart), 0.0f);
 		svars.outerConeRatio.x = 0.4f;
-		svars.spotLightDir.x = sin(timeSinceStart / 2.0);
+		
 		meshes[0].w.row4 = svars.pointLightPos;
 		meshes[2].w.data[13] = 2;
 	}

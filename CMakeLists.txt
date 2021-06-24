@@ -28,6 +28,7 @@ add_executable (GreenScreen
 	yellow.h
 	green.h
 	blue.h
+	skybox.h
 	purple.h
 	DDSTextureLoader.cpp
 	DDSTextureLoader.h

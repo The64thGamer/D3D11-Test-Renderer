@@ -4,6 +4,7 @@
 #include "test_pyramid.h"
 #include "dev4.h"
 #include "red.h"
+#include "skybox.h"
 #include "yellow.h"
 #include "green.h"
 #include "blue.h"
@@ -33,6 +34,7 @@ cbuffer SHDR_VARS // constant buggers are 16byte aligned
 	float4 spotLightColor;
 	float4 innerConeRatio;
 	float4 outerConeRatio;
+	float4 unlit;
 };
 
 struct VOUT
@@ -80,6 +82,7 @@ cbuffer SHDR_VARS // constant buggers are 16byte aligned
 	float4 spotLightColor;
 	float4 innerConeRatio;
 	float4 outerConeRatio;
+	float4 unlit;
 };
 
 
@@ -99,47 +102,51 @@ struct VOUT
 float4 main(VOUT input) : SV_TARGET 
 {	
 	float4 diffuse = mytexture.Sample(mysampler, input.uvw.xy);
-	float4 light = float4(0,0,0,0);
-
-	//Point Light
-	float distance = length(input.plp.xyz);
-	distance *= distance;
-	light +=saturate(dot(input.nrm, input.plp.xyz)) * pointLightColor / distance;
-
-	//Spot Light
-	distance = length(input.slp.xyz);
-	distance *= distance;
-	float surfaceRatio = saturate(dot(-input.slp.xyz,spotLightDir.xyz));
-	float lightRatio = saturate(dot(input.slp.xyz,input.nrm.xyz));
-	float spotAtten = 1.0 - saturate((innerConeRatio.x - surfaceRatio)/(innerConeRatio.x - outerConeRatio.x));
-	spotAtten *= spotAtten;
-	light += lightRatio * spotLightColor * spotAtten * distance;
-
-	//Ambient Light
-	light += ambientColor;
-
-	//Directional Light
-	light += saturate(dot(-lightDir.xyz,input.nrm)) * lightColor;
-
-	//Phong
-	light += max(pow(saturate(dot(input.nrm, normalize(-input.plp.xyz + input.cam.xyz))), 30.0f),0);	
-	light += max(pow(saturate(dot(input.nrm, normalize(-input.slp.xyz + input.cam.xyz))), 30.0f),0);	
-	
-	//Final
-	light *= diffuse;
-	
-	//Final Saturation
-	light = saturate(light);
-
-	light.w = diffuse.w;
-
-	if(light.w < 0.05)
+	if(unlit.x == 0)
 	{
-		discard;
-	}
+		float4 light = float4(0,0,0,0);
 
+		//Point Light
+		float distance = length(input.plp.xyz);
+		distance *= distance;
+		light +=saturate(dot(input.nrm, input.plp.xyz)) * pointLightColor / distance;
+
+		//Spot Light
+		distance = length(input.slp.xyz);
+		distance *= distance;
+		float surfaceRatio = saturate(dot(-input.slp.xyz,spotLightDir.xyz));
+		float lightRatio = saturate(dot(input.slp.xyz,input.nrm.xyz));
+		float spotAtten = 1.0 - saturate((innerConeRatio.x - surfaceRatio)/(innerConeRatio.x - outerConeRatio.x));
+		spotAtten *= spotAtten;
+		light += lightRatio * spotLightColor * spotAtten * distance;
+
+		//Ambient Light
+		light += ambientColor;
+
+		//Directional Light
+		light += saturate(dot(-lightDir.xyz,input.nrm)) * lightColor;
+
+		//Phong
+		light += max(pow(saturate(dot(input.nrm, normalize(-input.plp.xyz + input.cam.xyz))), 30.0f),0);	
+		light += max(pow(saturate(dot(input.nrm, normalize(-input.slp.xyz + input.cam.xyz))), 30.0f),0);	
+	
+		//Final
+		light *= diffuse;
+	
+		//Final Saturation
+		light = saturate(light);
+
+		light.w = diffuse.w;
+
+		if(light.w < 0.05)
+		{
+			discard;
+		}
+
+		diffuse = light;
+	}
 	//Return
-	return light;
+	return diffuse;
 }
 )";
 // Creation, Rendering & Cleanup
@@ -196,6 +203,7 @@ class Renderer
 		Microsoft::WRL::ComPtr<ID3D11Buffer>		indexBuffer;
 		Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> texture;
 	};
+	MESH skybox;
 	MESH meshes[3];
 	MESH transMeshes[20];
 	float transMeshDistance[20];
@@ -228,6 +236,7 @@ class Renderer
 		GW::MATH::GVECTORF spotLightColor;
 		GW::MATH::GVECTORF innerConeRatio;
 		GW::MATH::GVECTORF outerConeRatio;
+		GW::MATH::GVECTORF unlit;
 	}svars;
 	//math lib
 	GW::MATH::GMatrix m;
@@ -424,6 +433,17 @@ public:
 		UINT sampleMask = 0xffffffff;
 		con->OMSetBlendState(g_pBlendStateNoBlend, bf, sampleMask);
 
+		//Draw Skybox
+		svars.unlit.x = 1;
+		GW::MATH::GMATRIXF tempV = svars.v;
+		svars.v.data[12] = 0;
+		svars.v.data[13] = 0;
+		svars.v.data[14] = 0;
+		DrawMesh(skybox);
+		con->ClearDepthStencilView(depth, D3D11_CLEAR_DEPTH, 1, 0);
+		svars.v = tempV;
+		svars.unlit.x = 0;
+
 		//Draw Mesh
 		for (size_t i = 0; i < sizeof(meshes) / sizeof(meshes[0]); i++)
 		{
@@ -456,6 +476,7 @@ public:
 
 	void ModelSetUp()
 	{
+		FillMesh(skybox, skybox_data, skybox_vertexcount, skybox_indicies, skybox_indexcount, L"../Skybox.dds");
 		FillMesh(meshes[0], test_pyramid_data, test_pyramid_vertexcount, test_pyramid_indicies, test_pyramid_indexcount, L"../Rock.dds");
 		FillMesh(meshes[1], dev4_data, dev4_vertexcount, dev4_indicies, dev4_indexcount, L"../dev4.dds");
 		FillMesh(meshes[2], test_pyramid_data, test_pyramid_vertexcount, test_pyramid_indicies, test_pyramid_indexcount, L"../Rock.dds");
@@ -747,7 +768,7 @@ public:
 
 		//Edit Character Local
 		m.MultiplyMatrixF(viewWorldM, rotatedX, viewWorldM);
-		m.TranslateGlobalF(viewWorldM, GW::MATH::GVECTORF{ -playerVelX,playerVelY,-playerVelZ }, viewWorldM);
+		m.TranslateGlobalF(viewWorldM, GW::MATH::GVECTORF{ -playerVelX,-playerVelY,-playerVelZ }, viewWorldM);
 
 		//Multiply views
 		m.MultiplyMatrixF(viewWorldM, viewLocalM, svars.v);

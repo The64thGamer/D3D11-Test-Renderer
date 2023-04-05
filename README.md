@@ -1,6 +1,9 @@
-# GreenScreen
+# D3D11 Project
 
-A D3D11 Template for Windows.(D3D11 is a Microsoft only API)
-
-*All you should need is Visual Studio and the Windows SDK*
-
+A project I worked on in college for creating a 3D renderer from scratch. This was built up over the course of 3 months, and I had to hit multiple render targets for the final scene:
+* Transparent Objects
+* Point Lights & Spot Lights
+* Specular Lighting
+* Multiple Models
+* Moving / Rotating Models
+* Skybox

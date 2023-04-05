@@ -7,3 +7,5 @@ A project I worked on in college for creating a 3D renderer from scratch. This w
 * Multiple Models
 * Moving / Rotating Models
 * Skybox
+
+A custom program made by my college was used to generate the .h model files to speed up creation, though we also learned how to create a model in-code during the start of the project.
